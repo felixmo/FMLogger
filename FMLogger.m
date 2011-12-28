@@ -27,9 +27,23 @@
 #import "FMLogger.h"
 
 
+// Writes to the log file and messages sent to the console are done in the background so that the main thread isn't blocked by logging
+dispatch_queue_t backgroundQueue;
+
+
+//  Private interface declaration
+// -------------------------------
+
 @interface FMLogger ()
     
-- (NSString *)stringForLevel:(kFMLoggerLevel)level;
+- (NSString *)stringForLevel:(FMLoggerLevel)level;
+- (void)createLogFile;
+- (void)writeEntryToLogFile:(NSString *)entry;
+- (void)deleteOldLogs;
++ (NSDateFormatter *)dateFormatter; // Returns the shared NSDateFormatter for the calling thread; NSDateFormatter is not thread-safe
+
+@property (nonatomic, retain) NSString *logsFolderPath;
+@property (nonatomic, retain) NSString *currentLogFile;
 
 @end
 
@@ -39,7 +53,8 @@
 
 #pragma mark - Property synthesizations
 
-@synthesize sessionLogEntries;
+@synthesize logsFolderPath;
+@synthesize currentLogFile;
 
 
 #pragma mark - Static variables
@@ -51,7 +66,10 @@ static FMLogger *sharedLogger = nil;
 
 - (void)dealloc {
     
-    [sessionLogEntries release];
+    dispatch_release(backgroundQueue);
+    [logsFolderPath release];
+    [currentLogFile release];
+    [super dealloc];
 }
 
 
@@ -62,8 +80,33 @@ static FMLogger *sharedLogger = nil;
     self = [super init];
     if (self) {
         
-        sessionLogEntries = [[NSMutableArray alloc] init];
+        backgroundQueue = dispatch_queue_create(FM_BACKGROUND_QUEUE_LABEL, NULL);
         
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+        self.logsFolderPath = [[NSString alloc] initWithString:[[paths objectAtIndex:0] stringByAppendingPathComponent:FM_LOGS_DEFAULT_FOLDER_NAME]];
+        
+        // Create directory
+        BOOL isDirectory;
+        if (![[NSFileManager defaultManager] fileExistsAtPath:self.logsFolderPath isDirectory:&isDirectory]) {
+            
+            NSError *error;
+            
+            if (![[NSFileManager defaultManager] createDirectoryAtPath:self.logsFolderPath 
+                                      withIntermediateDirectories:YES
+                                                       attributes:nil
+                                                            error:&error]) {
+                
+                NSLog(@"Could not create logs directory at path: %@ | Error: %@", self.logsFolderPath, [error localizedDescription]);
+                self.logsFolderPath = nil;
+            }
+        }
+        
+        // Create file
+        [self createLogFile];
+        
+        // Delete old logs
+        [self deleteOldLogs];
+                    
         return self; 
     }
     
@@ -84,56 +127,143 @@ static FMLogger *sharedLogger = nil;
     return sharedLogger;
 }
 
++ (NSDateFormatter *)dateFormatter {
+
+    NSMutableDictionary *threadDictionary = [[NSThread currentThread] threadDictionary];
+    
+    NSDateFormatter *dateFormatter = [threadDictionary objectForKey:FM_DATE_FORMATTER_KEY];
+    if (!dateFormatter) {
+        dateFormatter = [[NSDateFormatter alloc] init];
+        [dateFormatter setLocale:[[[NSLocale alloc] initWithLocaleIdentifier:@"en_US"] autorelease]];
+        [dateFormatter setTimeZone:[NSTimeZone localTimeZone]];
+        [threadDictionary setObject: dateFormatter forKey:FM_DATE_FORMATTER_KEY];
+    }
+    
+    return dateFormatter;
+}
+
 
 #pragma mark - Private helper methods
 
-- (NSString *)stringForLevel:(kFMLoggerLevel)level {
+// Return the string value for a FMLoggerLevel value
+- (NSString *)stringForLevel:(FMLoggerLevel)level {
     
     switch (level) {
-        case kFMLoggerLevelTrace:
-            return @"TRACE";
+        case FMLoggerLevelVerbose:
+            return @"VERB.";
             break;
-        case kFMLoggerLevelDebug:
-            return @"DEBUG";
-            break;
-        case kFMLoggerLevelError:
+        case FMLoggerLevelError:
             return @"ERROR";
             break;
-        case kFMLoggerLevelInfo:
-            return @"INFO";
+        case FMLoggerLevelInfo:
+            return @"INFO.";
+            break;
+        case FMLoggerLevelWarning:
+            return @"WARN.";
             break;
             
         default:
-            return @"UNDEFINED";
+            return @"UNDEF";
             break;
     }
 }
 
 
+#pragma mark - File management
+
+- (void)deleteOldLogs {
+    
+    NSDate *expirationDate = [NSDate dateWithTimeIntervalSinceNow:-FM_LOGS_MAX_AGE];
+    NSDirectoryEnumerator *dirEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:logsFolderPath];
+    
+    for (NSString *fileName in dirEnumerator) {
+        
+        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:[logsFolderPath stringByAppendingPathComponent:fileName] error:NULL];
+        if ([[[attrs fileCreationDate] laterDate:expirationDate] isEqualToDate:expirationDate]) {
+            
+            [[NSFileManager defaultManager] removeItemAtPath:[logsFolderPath stringByAppendingPathComponent:fileName] error:NULL];
+        }
+    }
+}
+
+- (void)createLogFile {
+    
+    if (!self.currentLogFile) {
+        
+        [[FMLogger dateFormatter] setDateFormat:FM_LOGS_FILENAME_FORMAT];
+        
+        NSString *fileName = [[NSString alloc] initWithString:[[[FMLogger dateFormatter] stringFromDate:[NSDate date]] stringByAppendingString:@".txt"]];
+        self.currentLogFile = fileName;
+    }
+    
+    if (![[NSFileManager defaultManager] fileExistsAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]]) {
+        
+        if (![[NSFileManager defaultManager] createFileAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]
+                                                     contents:nil
+                                                   attributes:nil]) {
+            
+            NSLog(@"Could not create log file at path: %@", [self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]);
+            self.currentLogFile = nil;
+        }
+    }
+}
+
+- (void)writeEntryToLogFile:(NSString *)entry {
+    
+    if (![[NSFileManager defaultManager] fileExistsAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]]) {
+        
+        [self createLogFile];
+    }
+    
+    if (!self.logsFolderPath || !self.currentLogFile) return;
+    
+    dispatch_async(backgroundQueue, ^{
+       
+        NSFileHandle *logFile = [NSFileHandle fileHandleForUpdatingAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]];
+        
+        // If there is existing data in the log file, begin writing to the file on a new line at the end of the file
+        NSData *logBeginning = [logFile readDataOfLength:1];
+        if ([logBeginning length] > 0) {
+            NSString *newLine = @"\n";
+            [logFile seekToEndOfFile];
+            [logFile writeData:[NSData dataWithBytes:[newLine UTF8String] length:[newLine length]]];
+        }
+        
+        [logFile writeData:[NSData dataWithBytes:[entry UTF8String] length:[entry length]]];
+        [logFile synchronizeFile];
+        [logFile closeFile];
+    });
+}
+
+
 #pragma mark - Logger methods
 
-- (void)logLevel:(kFMLoggerLevel)level withMessage:(NSString *)fmt, ... {
+- (void)logEventAtLevel:(FMLoggerLevel)level withMessage:(NSString *)fmt, ... {
     
     va_list args;
     va_start(args, fmt);
     NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:args];
     va_end(args);
     
-    NSString *output = [[NSString alloc] initWithFormat:FORMAT_MSG, [NSDate date], [self stringForLevel:level], msg];
+    [[FMLogger dateFormatter] setDateFormat:FM_FORMAT_MSG_TIMESTAMP];
     
-    NSLog(@"%@", output);
+    NSString *output = [[NSString alloc] initWithFormat:FM_FORMAT_MSG, [[FMLogger dateFormatter] stringFromDate:[NSDate date]], [self stringForLevel:level], msg];
     
-    [self.sessionLogEntries addObject:output];
+    dispatch_async(backgroundQueue, ^{
+       NSLog(@"%@", output); 
+    });
+    
+    [self writeEntryToLogFile:output];
     
     [msg release];
     [output release];
 }
 
-- (void)logLevel:(kFMLoggerLevel)level forFunction:(const char *)func atLine:(int)line withMessage:(NSString *)fmt, ... {
+- (void)logEventAtLevel:(FMLoggerLevel)level forFunction:(const char *)func atLine:(int)line withMessage:(NSString *)fmt, ... {
 
-    if (!func || !line) {
+    if (!func || !line || !FM_LOGS_INCLUDE_FUNC_AND_LINE) {
         
-        [self logLevel:level withMessage:fmt];
+        [self logEventAtLevel:level withMessage:fmt];
         return;
     }
     
@@ -142,11 +272,15 @@ static FMLogger *sharedLogger = nil;
     NSString *msg = [[NSString alloc] initWithFormat:fmt arguments:args];
     va_end(args);
     
-    NSString *output = [[NSString alloc] initWithFormat:FORMAT_FUNC_LINE_MSG, [NSDate date], [self stringForLevel:level], msg, func, line];
+    [[FMLogger dateFormatter] setDateFormat:FM_FORMAT_MSG_TIMESTAMP];
     
-    NSLog(@"%@", output);
+    NSString *output = [[NSString alloc] initWithFormat:FM_FORMAT_FUNC_LINE_MSG, [[FMLogger dateFormatter] stringFromDate:[NSDate date]], [self stringForLevel:level], msg, func, line];
     
-    [self.sessionLogEntries addObject:output];
+    dispatch_async(backgroundQueue, ^{
+        NSLog(@"%@", output);
+    });
+
+    [self writeEntryToLogFile:output];
     
     [msg release];
     [output release];
