@@ -1,4 +1,29 @@
-# FMLogger 0.1
+# FMLogger
+
+Easy logging for iOS 4.0+.
+
+# Usage
+
+To begin using FMLogger, just drop the class into your project and import where used.
+
+Logs files, by default, are saved to .../Documents/Logs
+
+Use the following in place of NSLog:
+
+	FMLoggerVerbose(fmt, ...)  // for detailed informational messages used for debugging
+	
+	FMLoggerInfo(fmt, ...)     // for general informational messages that highlight the progress of the application
+
+	FMLoggerWarning(fmt, ...)  // for informational messages that highlight potential error events
+
+	FMLoggerError(fmt, ...)    // for informational messages pretaining to error events
+	
+# Sample output
+
+	2011-12-28 18:11:43 -0500 | [VERB.] | Began refreshing | -[FMSyncManager refresh] @ (line 350)
+	2011-12-28 18:11:43 -0500 | [VERB.] | Began getting lists | -[FMSyncManager getObjectsOfType:] @ (line 448)
+	2011-12-28 18:11:44 -0500 | [VERB.] | Processing list with name: Reminders | __34-[FMSyncManager getObjectsOfType:]_block_invoke_0 @ (line 469)
+	2011-12-28 18:11:44 -0500 | [VERB.] | Finished getting lists | __34-[FMSyncManager getObjectsOfType:]_block_invoke_0 @ (line 554)
 
 # Copyright and License
 

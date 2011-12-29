@@ -102,7 +102,7 @@
 //
 // Format string to be used as a template for messages that do NOT include the calling function and line number
 //
-// Example: 2011-08-22 15:02:39 +0000 | [INFO] | Entry named "Untitled" was created
+// Example: 2011-12-28 18:11:43 -0500 | [INFO] | Entry named "Untitled" was created
 //
 // Default: @"%@ | [%@] | %@" 
 // Accepted values: any format string that accepts 3 string arguments
@@ -117,7 +117,7 @@
 //
 // Format string to be used as a template for messages that include the calling function and line number
 //
-// Example: 2011-08-22 15:02:39 +0000 | [INFO] | Entry named "Untitled" was created | - (void)someFunction @ (line 45)
+// Example: 2011-12-28 18:11:43 -0500 | [INFO] | Entry named "Untitled" was created | -[Model createEntryWithName:] @ (line 45)
 //
 // Default: @"%@ | [%@] | %@ | %s @ (line %d)" 
 // Accepted values: any format string that accepts 5 arguments: 
