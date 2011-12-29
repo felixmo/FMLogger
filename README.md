@@ -1,8 +1,9 @@
-# FMLogger
+FMLogger
+========
 
 Easy logging for iOS 4.0+.
 
-## Usage
+### Usage
 
 To begin using FMLogger, just drop the class into your project and import where used.
 
@@ -18,18 +19,18 @@ Use the following in place of NSLog:
 
 	FMLoggerError(fmt, ...)    // for informational messages pretaining to error events
 	
-### Example usage
+#### Example usage
 
 	FMLoggerVerbose(@"Processing list with name: %@", list.name);
 
-## Sample output
+### Sample output
 
 	2011-12-28 18:11:43 -0500 | [VERB.] | Began refreshing | -[FMSyncManager refresh] @ (line 350)
 	2011-12-28 18:11:43 -0500 | [VERB.] | Began getting lists | -[FMSyncManager getObjectsOfType:] @ (line 448)
 	2011-12-28 18:11:44 -0500 | [VERB.] | Processing list with name: Reminders | __34-[FMSyncManager getObjectsOfType:]_block_invoke_0 @ (line 469)
 	2011-12-28 18:11:44 -0500 | [VERB.] | Finished getting lists | __34-[FMSyncManager getObjectsOfType:]_block_invoke_0 @ (line 554)
 
-## Copyright and License
+### Copyright and License
 
 Copyright (c) 2011 Felix Mo. All rights reserved.
 
