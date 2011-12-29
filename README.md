@@ -16,6 +16,11 @@ Use the following in place of NSLog:
 	FMLoggerWarning(fmt, ...)  // for informational messages that highlight potential error events
 
 	FMLoggerError(fmt, ...)    // for informational messages pretaining to error events
+	
+### Example usage
+
+	FMLoggerVerbose(@"Processing list with name: %@", list.name);
+
 # Sample output
 
 	2011-12-28 18:11:43 -0500 | [VERB.] | Began refreshing | -[FMSyncManager refresh] @ (line 350)
