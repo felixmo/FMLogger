@@ -151,10 +151,9 @@ typedef enum {
 
 @interface FMLogger : NSObject
 
-// Returns a reference to the shared instance of FMLogger; uses this instead of initalizing a new instance every time
 + (id)sharedLogger;
+// Returns a reference to the shared instance of FMLogger; uses this instead of initalizing a new instance every time
 
-// -- Logging methods --
 
 - (void)logEventAtLevel:(FMLoggerLevel)level withMessage:(NSString *)fmt, ...NS_FORMAT_FUNCTION(2, 3); 
 //

@@ -42,8 +42,8 @@ dispatch_queue_t backgroundQueue;
 - (void)deleteOldLogs;
 + (NSDateFormatter *)dateFormatter; // Returns the shared NSDateFormatter for the calling thread; NSDateFormatter is not thread-safe
 
-@property (nonatomic, retain) NSString *logsFolderPath;
-@property (nonatomic, retain) NSString *currentLogFile;
+@property (nonatomic, retain) NSString *logsFolderPath;     // Path to the logs directory
+@property (nonatomic, retain) NSString *currentLogFile;     // Name of the active log file
 
 @end
 
@@ -79,13 +79,14 @@ static FMLogger *sharedLogger = nil;
     
     self = [super init];
     if (self) {
-        
+              
         backgroundQueue = dispatch_queue_create(FM_BACKGROUND_QUEUE_LABEL, NULL);
         
+        // Get path to logs directory
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-        self.logsFolderPath = [[NSString alloc] initWithString:[[paths objectAtIndex:0] stringByAppendingPathComponent:FM_LOGS_DEFAULT_FOLDER_NAME]];
+        self.logsFolderPath = [[paths objectAtIndex:0] stringByAppendingPathComponent:FM_LOGS_DEFAULT_FOLDER_NAME];
         
-        // Create directory
+        // Create logs directory if it does not exist
         BOOL isDirectory;
         if (![[NSFileManager defaultManager] fileExistsAtPath:self.logsFolderPath isDirectory:&isDirectory]) {
             
@@ -101,10 +102,10 @@ static FMLogger *sharedLogger = nil;
             }
         }
         
-        // Create file
+        // Create log file for today
         [self createLogFile];
         
-        // Delete old logs
+        // Delete logs that have exceeded the maximum age
         [self deleteOldLogs];
                     
         return self; 
@@ -133,7 +134,7 @@ static FMLogger *sharedLogger = nil;
     
     NSDateFormatter *dateFormatter = [threadDictionary objectForKey:FM_DATE_FORMATTER_KEY];
     if (!dateFormatter) {
-        dateFormatter = [[NSDateFormatter alloc] init];
+        dateFormatter = [[[NSDateFormatter alloc] init] autorelease];
         [dateFormatter setLocale:[[[NSLocale alloc] initWithLocaleIdentifier:@"en_US"] autorelease]];
         [dateFormatter setTimeZone:[NSTimeZone localTimeZone]];
         [threadDictionary setObject: dateFormatter forKey:FM_DATE_FORMATTER_KEY];
@@ -187,14 +188,12 @@ static FMLogger *sharedLogger = nil;
 }
 
 - (void)createLogFile {
+        
+    [[FMLogger dateFormatter] setDateFormat:FM_LOGS_FILENAME_FORMAT];
     
-    if (!self.currentLogFile) {
-        
-        [[FMLogger dateFormatter] setDateFormat:FM_LOGS_FILENAME_FORMAT];
-        
-        NSString *fileName = [[NSString alloc] initWithString:[[[FMLogger dateFormatter] stringFromDate:[NSDate date]] stringByAppendingString:@".txt"]];
-        self.currentLogFile = fileName;
-    }
+    NSString *fileName = [[NSString alloc] initWithString:[[[FMLogger dateFormatter] stringFromDate:[NSDate date]] stringByAppendingString:@".txt"]];
+    self.currentLogFile = fileName;
+    [fileName release];
     
     if (![[NSFileManager defaultManager] fileExistsAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]]) {
         
@@ -209,11 +208,8 @@ static FMLogger *sharedLogger = nil;
 }
 
 - (void)writeEntryToLogFile:(NSString *)entry {
-    
-    if (![[NSFileManager defaultManager] fileExistsAtPath:[self.logsFolderPath stringByAppendingPathComponent:self.currentLogFile]]) {
         
-        [self createLogFile];
-    }
+    [self createLogFile];   // Call each time so that a new log file is created if the date changes
     
     if (!self.logsFolderPath || !self.currentLogFile) return;
     
