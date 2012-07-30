@@ -1,7 +1,7 @@
 FMLogger
 ========
 
-Easy logging for iOS 4.0+.
+Simple logging for iOS 4.0+.
 
 
 ### Usage
@@ -35,7 +35,7 @@ Use the following in place of NSLog:
 
 ### Copyright and License
 
-Copyright (c) 2011 Felix Mo. All rights reserved.
+Copyright (c) 2011-2012 Felix Mo. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
